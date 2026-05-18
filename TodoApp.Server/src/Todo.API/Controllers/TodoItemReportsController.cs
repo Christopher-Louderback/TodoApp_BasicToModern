@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.DTOs.Requests;
 using Todo.Services.Interfaces;
@@ -7,6 +7,7 @@ namespace Todo.API.Controllers
 {
     [Route("reports")]
     [ApiController]
+    [Authorize]
     public class TodoItemReportsController : ControllerBase
     {
         private readonly ITodoItemReportService _todoItemReportService;

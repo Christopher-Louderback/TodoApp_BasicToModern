@@ -1,16 +1,34 @@
 ﻿using Quartz;
 using Todo.Services.Jobs;
+using Microsoft.Extensions.Configuration;
 
 namespace Todo.API.Extensions
 {
     public static class QuartzServiceExtensions
     {
-        public static IServiceCollection AddQuartzConfiguration(this IServiceCollection services)
+        public static IServiceCollection AddQuartzConfiguration(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddQuartz(q =>
             {
-                q.UseSimpleTypeLoader();
-                q.UseInMemoryStore();
+                // in memory to clustered changes
+                q.UsePersistentStore(s =>
+                {
+                    s.UseProperties = true;
+                    s.UseClustering(c =>
+                    {
+                        c.CheckinMisfireThreshold = TimeSpan.FromSeconds(20);
+                        c.CheckinInterval = TimeSpan.FromSeconds(10);
+                    });
+
+                    //Worth looking into switch to Newtonsoft later or if issues arise
+                    s.UseJsonSerializer();
+                    s.UseMySql(sql =>
+                    {
+                        sql.ConnectionString = configuration.GetConnectionString("DefaultConnection")!;
+                        sql.TablePrefix = "QRTZ_";
+                    });
+                });
+
                 q.UseDefaultThreadPool(tp =>
                 {
                     tp.MaxConcurrency = 3;
@@ -51,15 +69,14 @@ namespace Todo.API.Extensions
                     .WithIdentity(reminderReportTrigger)
                     .WithCronSchedule("0 0 8 * * ?") // 8:00 am mỗi ngày
                     .WithDescription("Trigger for morning task reminder"));
-
             });
-            
+
             services.AddQuartzHostedService(options =>
             {
                 options.WaitForJobsToComplete = true;
                 options.AwaitApplicationStarted = true;
             });
-            
+
             return services;
         }
     }

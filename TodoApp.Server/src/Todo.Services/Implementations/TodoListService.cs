@@ -2,28 +2,27 @@ using LinqKit;
 using MayNghien.Infrastructures.Models.Requests;
 using MayNghien.Infrastructures.Models.Responses;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Todo.DTOs.Requests;
 using Todo.DTOs.Responses;
 using Todo.Models.Entities;
 using Todo.Repositories.Interfaces;
 using Todo.Services.Interfaces;
 using Todo.Services.Mapping;
+using Todo.Services.Helpers;
 using static MayNghien.Infrastructures.Helpers.SearchHelper;
+using Microsoft.AspNetCore.Http;
 
 namespace Todo.Services.Implementations
 {
     public class TodoListService : ITodoListService
     {
         private readonly ITodoListRepository _todoListRepository;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public TodoListService(ITodoListRepository todoListRepository)
+        public TodoListService(ITodoListRepository todoListRepository, IHttpContextAccessor httpContextAccessor)
         {
             _todoListRepository = todoListRepository;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<AppResponse<TodoListResponse>> CreateAsync(TodoListRequest request)
@@ -31,10 +30,12 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<TodoListResponse>();
             try
             {
+                var userId = _httpContextAccessor.GetUserId();
                 var entity = TodoListMapper.ToEntity(request);
                 entity.Id = Guid.NewGuid();
                 entity.Name = request.Name;
                 entity.Description = request.Description;
+                entity.UserId = userId;
                 entity.CreatedOn = DateTime.UtcNow;
                 await _todoListRepository.AddAsync(entity);
 
@@ -53,9 +54,14 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<string>();
             try
             {
+                var userId = _httpContextAccessor.GetUserId();
                 var entity = await _todoListRepository.GetAsync(id);
                 if (entity == null || entity.IsDeleted == true)
                     return result.BuildError("Todo list not found or deleted.");
+
+                if (entity.UserId != userId)
+                    return result.BuildError("Unauthorized: You do not have permission to delete this list.");
+
                 entity.IsDeleted = true;
                 await _todoListRepository.EditAsync(entity);
                 result.BuildResult("Todo list deleted successfully.");
@@ -72,7 +78,8 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<TodoListResponse>();
             try
             {
-                var entity = await _todoListRepository.FindByAsync(p => p.Id == id).FirstOrDefaultAsync();
+                var userId = _httpContextAccessor.GetUserId();
+                var entity = await _todoListRepository.FindByAsync(p => p.Id == id && p.UserId == userId).FirstOrDefaultAsync();
                 if (entity == null || entity.IsDeleted == true)
                     return result.BuildError("Todo list not found or deleted.");
 
@@ -91,7 +98,8 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<SearchResponse<TodoListResponse>>();
             try
             {
-                var query = BuildFilterExpression(request.Filters!);
+                var userId = _httpContextAccessor.GetUserId();
+                var query = BuildFilterExpression(request.Filters!, userId);
                 var numOfRecords = await _todoListRepository.CountRecordsAsync(query);
                 var todoLists = _todoListRepository.FindByPredicate(query).AsQueryable();
 
@@ -123,11 +131,15 @@ namespace Todo.Services.Implementations
             return result;
         }
 
-        private ExpressionStarter<TodoList> BuildFilterExpression(List<Filter> filters)
+        private ExpressionStarter<TodoList> BuildFilterExpression(List<Filter> filters, string userId)
         {
             try
             {
                 var predicate = PredicateBuilder.New<TodoList>(true);
+
+                // Always filter by current user
+                predicate = predicate.And(x => x.UserId == userId);
+
                 if (filters != null)
                 {
                     foreach (var filter in filters)

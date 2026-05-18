@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Quartz;
 
@@ -6,14 +6,15 @@ namespace Todo.API.Controllers
 {
     [Route("jobs")]
     [ApiController]
+    [Authorize(Roles = "Admin")]
     public class JobsController : ControllerBase
     {
-        private readonly IScheduler _scheduler;
+        private readonly ISchedulerFactory _schedulerFactory;
         private readonly ILogger<JobsController> _logger;
 
         public JobsController(ISchedulerFactory schedulerFactory, ILogger<JobsController> logger)
         {
-            _scheduler = schedulerFactory.GetScheduler().Result;
+            _schedulerFactory = schedulerFactory;
             _logger = logger;
         }
 
@@ -22,10 +23,11 @@ namespace Todo.API.Controllers
         {
             try
             {
+                var scheduler = await _schedulerFactory.GetScheduler();
                 var jobKey = new JobKey("DailyTaskReportJob", "EmailJobs");
-                await _scheduler.TriggerJob(jobKey);
+                await scheduler.TriggerJob(jobKey);
 
-                _logger.LogInformation("Daily report job triggered manually at {Time}", DateTime.Now);
+                _logger.LogInformation("Daily report job triggered manually at {Time}", DateTime.UtcNow);
 
                 return Ok(new { Message = "Daily report job triggered successfully!" });
             }
@@ -41,10 +43,11 @@ namespace Todo.API.Controllers
         {
             try
             {
+                var scheduler = await _schedulerFactory.GetScheduler();
                 var jobKey = new JobKey("WeeklyTaskSummaryJob", "EmailJobs");
-                await _scheduler.TriggerJob(jobKey);
+                await scheduler.TriggerJob(jobKey);
 
-                _logger.LogInformation("Weekly summary job triggered manually at {Time}", DateTime.Now);
+                _logger.LogInformation("Weekly summary job triggered manually at {Time}", DateTime.UtcNow);
 
                 return Ok(new { Message = "Weekly summary job triggered successfully!" });
             }
@@ -60,10 +63,11 @@ namespace Todo.API.Controllers
         {
             try
             {
+                var scheduler = await _schedulerFactory.GetScheduler();
                 var jobKey = new JobKey("TaskReminderJob", "EmailJobs");
-                await _scheduler.TriggerJob(jobKey);
+                await scheduler.TriggerJob(jobKey);
 
-                _logger.LogInformation("Task reminder job triggered manually at {Time}", DateTime.Now);
+                _logger.LogInformation("Task reminder job triggered manually at {Time}", DateTime.UtcNow);
 
                 return Ok(new { Message = "Task reminder job triggered successfully!" });
             }
@@ -79,8 +83,9 @@ namespace Todo.API.Controllers
         {
             try
             {
+                var scheduler = await _schedulerFactory.GetScheduler();
                 var jobKey = new JobKey(jobName, "EmailJobs");
-                await _scheduler.PauseJob(jobKey);
+                await scheduler.PauseJob(jobKey);
 
                 return Ok(new { Message = $"Job '{jobName}' paused successfully!" });
             }
@@ -96,8 +101,9 @@ namespace Todo.API.Controllers
         {
             try
             {
+                var scheduler = await _schedulerFactory.GetScheduler();
                 var jobKey = new JobKey(jobName, "EmailJobs");
-                await _scheduler.ResumeJob(jobKey);
+                await scheduler.ResumeJob(jobKey);
 
                 return Ok(new { Message = $"Job '{jobName}' resumed successfully!" });
             }
@@ -111,7 +117,8 @@ namespace Todo.API.Controllers
         [HttpGet("scheduler/info")]
         public async Task<IActionResult> GetSchedulerInfo()
         {
-            var metadata = await _scheduler.GetMetaData();
+            var scheduler = await _schedulerFactory.GetScheduler();
+            var metadata = await scheduler.GetMetaData();
 
             return Ok(new
             {

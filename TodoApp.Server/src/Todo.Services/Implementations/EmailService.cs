@@ -185,14 +185,28 @@ namespace Todo.Services.Implementations
         {
             try
             {
-                _logger.LogInformation("Seding weekly todo item summary at {Time}", DateTime.Now);
+                _logger.LogInformation("Sending weekly todo item summary at {Time}", DateTime.Now);
                 var request = new TodoItemReportRequest();
                 var reportResponse = await _taskReportService.GetProgressReportAsync(request);
+                if (reportResponse?.Data == null)
+                {
+                    _logger.LogWarning("Cannot get todo item report data for weekly summary");
+                    return;
+                }
+
                 var emailBody = BuildWeeklyReportEmail(reportResponse.Data);
+                await SendEmailAsync(
+                    to: RecipientEmail,
+                    subject: $"Weekly Todo Item Summary - Week of {DateTime.Now:yyyy-MM-dd}",
+                    body: emailBody
+                );
+
+                _logger.LogInformation("Weekly todo item summary sent successfully");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send weekly todo item summary");
+                throw;
             }
         }
 

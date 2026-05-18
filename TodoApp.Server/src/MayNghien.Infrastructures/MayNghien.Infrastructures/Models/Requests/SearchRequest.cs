@@ -12,7 +12,7 @@ namespace MayNghien.Infrastructures.Models.Requests
         public int? PageIndex { get; set; }
 
         [Required]
-        [Range(1, int.MaxValue)]
+        [Range(1, 50)]
         public int? PageSize { get; set; }
     }
 }

@@ -11,8 +11,8 @@ namespace Todo.Models.Entities
 {
     public class TodoItem : BaseEntity
     {
-        public string Title { get; set; }
-        public string Description { get; set; }
+        public required string Title { get; set; }
+        public required string Description { get; set; }
         public DateTime DueDate { get; set; }
         public bool IsCompleted { get; set; }
         public Tier Priority { get; set; }
@@ -21,5 +21,9 @@ namespace Todo.Models.Entities
         [ForeignKey("TodoList")]
         public Guid? TodoListId { get; set; }
         public TodoList? TodoList { get; set; }
+
+        [ForeignKey("User")]
+        public required string UserId { get; set; }
+        public ApplicationUser? User { get; set; }
     }
 }

@@ -1,5 +1,5 @@
 ﻿using MayNghien.Infrastructures.Models.Requests;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Todo.DTOs.Requests;
 using Todo.Services.Interfaces;
@@ -8,6 +8,7 @@ namespace Todo.API.Controllers
 {
     [Route("todo-items")]
     [ApiController]
+    [Authorize]
     public class TodoItemsController : ControllerBase
     {
         private readonly ITodoItemService _todoItemService;

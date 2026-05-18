@@ -1,19 +1,13 @@
-﻿using Azure.Core;
-using LinqKit;
+﻿using LinqKit;
 using MayNghien.Infrastructures.Models.Requests;
 using MayNghien.Infrastructures.Models.Responses;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
 using Todo.DTOs.Requests;
 using Todo.DTOs.Responses;
 using Todo.Models.Entities;
 using Todo.Repositories.Interfaces;
+using Todo.Services.Helpers;
 using Todo.Services.Interfaces;
 using Todo.Services.Mapping;
 using static MayNghien.Infrastructures.Helpers.SearchHelper;
@@ -23,10 +17,12 @@ namespace Todo.Services.Implementations
     public class TodoItemService : ITodoItemService
     {
         private readonly ITodoItemRepository _todoItemRepository;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public TodoItemService(ITodoItemRepository todoItemRepository)
+        public TodoItemService(ITodoItemRepository todoItemRepository, IHttpContextAccessor httpContextAccessor)
         {
             _todoItemRepository = todoItemRepository;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<AppResponse<TodoItemResponse>> CreateAsync(TodoItemRequest request)
@@ -34,6 +30,7 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<TodoItemResponse>();
             try
             {
+                var userId = _httpContextAccessor.GetUserId();
                 var newTask = TodoItemMapper.ToEntity(request);
                 newTask.Id = Guid.NewGuid();
                 newTask.Title = request.Title;
@@ -41,6 +38,7 @@ namespace Todo.Services.Implementations
                 newTask.DueDate = request.DueDate;
                 newTask.Priority = request.Priority;
                 newTask.TodoListId = request.TodoListId;
+                newTask.UserId = userId;
                 newTask.CreatedOn = DateTime.UtcNow;
                 newTask.IsCompleted = false;
                 newTask.CompletedOn = null;
@@ -61,9 +59,14 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<string>();
             try
             {
+                var userId = _httpContextAccessor.GetUserId();
                 var task = await _todoItemRepository.GetAsync(id);
                 if (task == null || task.IsDeleted == true)
                     return result.BuildError("Item not found or deleted.");
+
+                if (task.UserId != userId)
+                    return result.BuildError("Unauthorized: You do not have permission to delete this item.");
+
                 task.IsDeleted = true;
                 await _todoItemRepository.EditAsync(task);
                 result.BuildResult("Item deleted successfully.");
@@ -80,7 +83,8 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<TodoItemResponse>();
             try
             {
-                var task = await _todoItemRepository.FindByAsync(p => p.Id == id).FirstOrDefaultAsync();
+                var userId = _httpContextAccessor.GetUserId();
+                var task = await _todoItemRepository.FindByAsync(p => p.Id == id && p.UserId == userId).FirstOrDefaultAsync();
                 if (task == null || task.IsDeleted == true)
                     return result.BuildError("Item not found or deleted.");
 
@@ -99,7 +103,8 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<SearchResponse<TodoItemResponse>>();
             try
             {
-                var query = BuildFilterExpression(request.Filters!);
+                var userId = _httpContextAccessor.GetUserId();
+                var query = BuildFilterExpression(request.Filters!, userId);
                 var numOfRecords = await _todoItemRepository.CountRecordsAsync(query);
                 var tasks = _todoItemRepository.FindByPredicate(query).AsQueryable();
 
@@ -131,11 +136,15 @@ namespace Todo.Services.Implementations
             return result;
         }
 
-        private ExpressionStarter<TodoItem> BuildFilterExpression(List<Filter> filters)
+        private ExpressionStarter<TodoItem> BuildFilterExpression(List<Filter> filters, string userId)
         {
             try
             {
                 var predicate = PredicateBuilder.New<TodoItem>(true);
+
+                // Always filter by current user
+                predicate = predicate.And(x => x.UserId == userId);
+
                 if (filters != null)
                 {
                     foreach (var filter in filters)
@@ -171,9 +180,13 @@ namespace Todo.Services.Implementations
             var result = new AppResponse<TodoItemResponse>();
             try
             {
+                var userId = _httpContextAccessor.GetUserId();
                 var task = await _todoItemRepository.GetAsync(request.Id);
                 if (task == null || task.IsDeleted == true)
                     return result.BuildError("Item not found or deleted.");
+
+                if (task.UserId != userId)
+                    return result.BuildError("Unauthorized: You do not have permission to update this item.");
 
                 task.Title = request.Title;
                 task.Description = request.Description;
