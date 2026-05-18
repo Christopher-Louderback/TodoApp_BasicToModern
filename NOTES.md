@@ -1,7 +1,7 @@
 ## Notes
 Would've liked to break away things like security issues and email bug into their own ticket(s), but the assessment description said ticket not tickets, so worked with that.
 
-Worked with assumption that database changes would be handled, but that it wouldn't be neccesary for me to do here.
+Worked with assumption that certain changes (e.g. database) would be handled.
 
 ## Descriptions & Reasoning - Manual Changes
 
